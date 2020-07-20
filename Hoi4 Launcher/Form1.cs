@@ -14,6 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Net.Http;
+using ImgButton;
 
 namespace Hoi4_Launcher
 {
@@ -34,10 +35,64 @@ namespace Hoi4_Launcher
             load();
         }
 
-        private void Form1_Load(object sender, EventArgs e)
+        public dlcModel[] GetDLCs()
         {
+            List<dlcModel> dlcs = new List<dlcModel>();
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "dlc");
 
+            foreach (var dir in Directory.GetDirectories(path))
+            {
+                try
+                {
+                    DirectoryInfo dInfo = new DirectoryInfo(dir);
+                    var dlcFullPath = dInfo.GetFilesByExtensions(".dlc").First().FullName;
+                    var dlc = new dlcModel();
+                    var x = File.ReadLines(dlcFullPath);
+                    dlc.name = x.First().Split('"')[1].Replace('"', ' ');
+                    dlc.path = x.ElementAt(1).Split('"')[1].Replace('"', ' ').Split('.').First() + ".dlc";
+                    var party = x.ElementAt(x.Count() - 2).Split('=')[1].Replace(" ", "");
+                    if (party == "yes")
+                    { dlc._3rdparty = true; userControl11._3rdParty = true; }
+                    else { dlc._3rdparty = false; userControl11._3rdParty = false; }
+                    dlcs.Add(dlc);
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+            return dlcs.ToArray();
         }
+
+        private void load()
+        {
+            //Load Mods
+            var items = load_items();
+            var mods = load_mods_info();
+            int enabled_mods = 0;
+            foreach (var mod in mods)
+            {
+                bool enabled = false;
+                if (items.enabled_mods.Contains(mod.gameRegistryId)) { enabled = true; enabled_mods++; }
+                list_mods.Items.Add(mod.displayName, enabled);
+                //var cacheimg = cacheImages(mod.displayName, "0").response.publishedfiledetails.First();
+                //var img = cacheimg.previews.First();
+                //var x  = img.url;
+            }
+            label_mods.Text = "Mods: " + enabled_mods + "/" + mods.Length;
+
+            //Load DLC
+            foreach (var dlc in dis_dlc)
+            {
+                bool enabled = true;
+                if (items.disabled_dlcs.Contains(dlc.path)) { enabled = false; }
+                list_dlc.Items.Add(dlc.name, enabled);
+            }
+            //Load LHSetthings
+            string data = File.ReadAllText(@"launcher-settings.json");
+            var obj = JsonConvert.DeserializeObject<LHSettings>(data);
+            label_version.Text += " " + obj.version;
+        }
+
         public launchSettings load_items()
         {
             launchSettings obj;
@@ -68,33 +123,6 @@ namespace Hoi4_Launcher
         {
         }
 
-        private void load() {
-            //Load Mods
-            var items = load_items();
-            var mods = load_mods_info();
-            int enabled_mods = 0;
-            foreach (var mod in mods)
-            {
-                bool enabled = false;
-                if (items.enabled_mods.Contains(mod.gameRegistryId)) { enabled = true; enabled_mods++; }
-                list_mods.Items.Add(mod.displayName, enabled);
-                //var cacheimg = cacheImages(mod.displayName, "0").response.publishedfiledetails.First();
-                //var img = cacheimg.previews.First();
-                //var x  = img.url;
-            }
-            label_mods.Text = "Mods: " + enabled_mods + "/" + mods.Length;
-
-            //Load DLC
-            foreach (var dlc in dis_dlc) {
-                bool enabled = true;
-                if (items.disabled_dlcs.Contains(dlc.path)) { enabled = false; }
-                list_dlc.Items.Add(dlc.name,enabled);
-            }
-            //Load LHSetthings
-            string data = File.ReadAllText(@"launcher-settings.json");
-            var obj = JsonConvert.DeserializeObject<LHSettings>(data);
-            label_version.Text += " " + obj.version;
-        }
         private void TextBox1_TextChanged(object sender, EventArgs e)
         {
 
@@ -126,31 +154,6 @@ namespace Hoi4_Launcher
             return client.GetAsync(url).Result.Content.ReadAsStringAsync().Result;
         }
 
-        public dlcModel[] GetDLCs() {
-            List<dlcModel> dlcs = new List<dlcModel>();
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "dlc");
-
-                foreach (var dir in Directory.GetDirectories(path)) {
-                try
-                {
-                    DirectoryInfo dInfo = new DirectoryInfo(dir);
-                    var dlcFullPath = dInfo.GetFilesByExtensions(".dlc").First().FullName;
-                    var dlc = new dlcModel();
-                    var x = File.ReadLines(dlcFullPath);
-                    dlc.name = x.First().Split('"')[1].Replace('"', ' ');
-                    dlc.path = x.ElementAt(1).Split('"')[1].Replace('"', ' ').Split('.').First() + ".dlc";
-                    var party = x.ElementAt(x.Count() - 2).Split('=')[1].Replace(" ", "");
-                    if ( party == "yes")
-                    { dlc._3rdparty = true; userControl11._3rdParty = true; }
-                    else { dlc._3rdparty = false; }
-                    dlcs.Add(dlc);
-                }
-            catch (Exception ex)
-            {
-            }
-        }
-            return dlcs.ToArray();
-        }
 
         private void UserControl11_Click(object sender, EventArgs e)
         {
@@ -182,6 +185,23 @@ namespace Hoi4_Launcher
             Process.Start(@"hoi4.exe");
             Application.Exit();
         }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            bool thrd_party = false;
+            foreach(var _dlc in list_dlc.CheckedItems)
+            {
+                foreach (dlcModel dlc in dis_dlc)
+                {
+                    if (dlc.name == _dlc.ToString() && dlc._3rdparty) { thrd_party = true; break; }
+                }
+                if (thrd_party) break;
+            }
+
+
+            userControl11._3rdParty = thrd_party;
+        }
+
     }
 
 }
